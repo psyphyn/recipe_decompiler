@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipe Decompiler</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    header h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #ff6b35, #f7c948);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      color: #888;
+      font-size: 1rem;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 2rem;
+      border-bottom: 2px solid #222;
+    }
+
+    .tab {
+      padding: 0.75rem 1.5rem;
+      cursor: pointer;
+      color: #888;
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+
+    .tab:hover { color: #ccc; }
+    .tab.active { color: #f7c948; border-bottom-color: #f7c948; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Upload area */
+    .upload-area {
+      border: 2px dashed #333;
+      border-radius: 12px;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+
+    .upload-area:hover, .upload-area.dragover {
+      border-color: #f7c948;
+      background: rgba(247, 201, 72, 0.05);
+    }
+
+    .upload-area input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .upload-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .upload-area p { color: #888; }
+    .upload-area .hint { font-size: 0.85rem; color: #555; margin-top: 0.5rem; }
+
+    .preview-strip {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+
+    .preview-strip .thumb {
+      width: 80px;
+      height: 80px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 2px solid #333;
+    }
+
+    .preview-strip .remove-thumb {
+      position: relative;
+    }
+
+    .preview-strip .remove-btn {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 20px;
+      height: 20px;
+      background: #ff4444;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Form fields */
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 0.4rem;
+      color: #bbb;
+      font-size: 0.9rem;
+    }
+
+    .form-group input, .form-group textarea {
+      width: 100%;
+      padding: 0.7rem 1rem;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 0.95rem;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus, .form-group textarea:focus {
+      outline: none;
+      border-color: #f7c948;
+    }
+
+    .form-group textarea { min-height: 100px; resize: vertical; }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    /* Button */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.85rem 2rem;
+      background: linear-gradient(135deg, #ff6b35, #f7c948);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .btn:hover { opacity: 0.9; }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Progress */
+    .progress {
+      display: none;
+      margin-top: 1.5rem;
+    }
+
+    .progress.active { display: block; }
+
+    .progress-step {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0;
+      color: #555;
+      font-size: 0.9rem;
+    }
+
+    .progress-step.done { color: #4caf50; }
+    .progress-step.active { color: #f7c948; }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #333;
+      border-top-color: #f7c948;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .check { color: #4caf50; font-weight: bold; }
+
+    /* Results */
+    .results {
+      display: none;
+      margin-top: 2rem;
+    }
+
+    .results.active { display: block; }
+
+    .result-section {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .result-section h3 {
+      color: #f7c948;
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+    }
+
+    .recipe-content {
+      line-height: 1.7;
+      white-space: pre-wrap;
+      font-size: 0.92rem;
+    }
+
+    .recipe-content h1, .recipe-content h2 {
+      color: #ff6b35;
+      margin: 1.5rem 0 0.75rem;
+      font-size: 1.3rem;
+    }
+
+    .recipe-content h3 {
+      color: #f7c948;
+      margin: 1rem 0 0.5rem;
+      font-size: 1.05rem;
+    }
+
+    .recipe-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.75rem 0;
+    }
+
+    .recipe-content th, .recipe-content td {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #333;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+
+    .recipe-content th { background: #222; color: #f7c948; }
+
+    .collapsible-header {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .collapsible-header .arrow {
+      transition: transform 0.2s;
+    }
+
+    .collapsible-header.open .arrow {
+      transform: rotate(180deg);
+    }
+
+    .collapsible-body {
+      display: none;
+      margin-top: 1rem;
+    }
+
+    .collapsible-body.open { display: block; }
+
+    .error-msg {
+      background: #2a1515;
+      border: 1px solid #5a2020;
+      color: #ff6b6b;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+      display: none;
+    }
+
+    .error-msg.active { display: block; }
+
+    @media (max-width: 600px) {
+      .form-row { grid-template-columns: 1fr; }
+      header h1 { font-size: 1.6rem; }
+      .container { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Recipe Decompiler</h1>
+      <p>Reverse-engineer any product into a homemade recipe with exact measurements</p>
+    </header>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="upload">Upload Photos</div>
+      <div class="tab" data-tab="text">Enter Manually</div>
+    </div>
+
+    <!-- Image Upload Tab -->
+    <div id="tab-upload" class="tab-content active">
+      <div class="upload-area" id="dropzone">
+        <input type="file" id="file-input" multiple accept="image/*,.heic,.heif">
+        <div class="upload-icon">+</div>
+        <p>Drop label photos here or click to browse</p>
+        <p class="hint">Upload nutrition facts + ingredient list photos (HEIC, JPG, PNG)</p>
+      </div>
+      <div class="preview-strip" id="preview-strip"></div>
+      <button class="btn" id="btn-upload" disabled>Decompile Recipe</button>
+    </div>
+
+    <!-- Text Input Tab -->
+    <div id="tab-text" class="tab-content">
+      <div class="form-group">
+        <label>Product Name</label>
+        <input type="text" id="product-name" placeholder="e.g., Limoncello Lemon Sorbet">
+      </div>
+      <div class="form-group">
+        <label>Ingredients (as listed on label)</label>
+        <textarea id="ingredients" placeholder="e.g., Organic skim milk, organic lemon juice, sugar, water, organic coconut oil..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Nutrition Facts</label>
+        <textarea id="nutrition" placeholder="Calories: 130, Total Fat: 3g, Saturated Fat: 2.5g, Sodium: 25mg, Total Carbohydrate: 26g, Sugars: 26g, Protein: <1g"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Serving Size</label>
+          <input type="text" id="serving-size" placeholder="e.g., 2/3 cup (90g)">
+        </div>
+        <div class="form-group">
+          <label>Servings per Container</label>
+          <input type="text" id="servings-count" placeholder="e.g., 6">
+        </div>
+      </div>
+      <button class="btn" id="btn-text">Decompile Recipe</button>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress" id="progress">
+      <div class="progress-step" id="step-extract">
+        <span class="step-icon"></span>
+        <span>Extracting product info from images...</span>
+      </div>
+      <div class="progress-step" id="step-scrape">
+        <span class="step-icon"></span>
+        <span>Scraping recipe websites for references...</span>
+      </div>
+      <div class="progress-step" id="step-search">
+        <span class="step-icon"></span>
+        <span>AI searching for similar recipes...</span>
+      </div>
+      <div class="progress-step" id="step-keto">
+        <span class="step-icon"></span>
+        <span>Researching keto substitutions...</span>
+      </div>
+      <div class="progress-step" id="step-decompile">
+        <span class="step-icon"></span>
+        <span>Decompiling recipe with AI...</span>
+      </div>
+    </div>
+
+    <div class="error-msg" id="error"></div>
+
+    <!-- Results -->
+    <div class="results" id="results">
+      <div class="result-section">
+        <h3>Decompiled Recipe</h3>
+        <div class="recipe-content" id="recipe-output"></div>
+      </div>
+
+      <div class="result-section">
+        <div class="collapsible-header" onclick="toggleSection('extracted')">
+          <h3>Extracted Product Info</h3>
+          <span class="arrow">&#9660;</span>
+        </div>
+        <div class="collapsible-body" id="section-extracted">
+          <div class="recipe-content" id="extracted-output"></div>
+        </div>
+      </div>
+
+      <div class="result-section">
+        <div class="collapsible-header" onclick="toggleSection('references')">
+          <h3>Reference Recipes Found</h3>
+          <span class="arrow">&#9660;</span>
+        </div>
+        <div class="collapsible-body" id="section-references">
+          <div class="recipe-content" id="references-output"></div>
+        </div>
+      </div>
+
+      <div class="result-section">
+        <div class="collapsible-header" onclick="toggleSection('keto-research')">
+          <h3>Keto Substitution Research</h3>
+          <span class="arrow">&#9660;</span>
+        </div>
+        <div class="collapsible-body" id="section-keto-research">
+          <div class="recipe-content" id="keto-research-output"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // File handling
+    const fileInput = document.getElementById('file-input');
+    const previewStrip = document.getElementById('preview-strip');
+    const btnUpload = document.getElementById('btn-upload');
+    const dropzone = document.getElementById('dropzone');
+    let selectedFiles = [];
+
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      addFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', () => addFiles(fileInput.files));
+
+    function addFiles(files) {
+      for (const f of files) {
+        if (f.type.startsWith('image/') || f.name.match(/\.heic$/i)) {
+          selectedFiles.push(f);
+        }
+      }
+      renderPreviews();
+    }
+
+    function renderPreviews() {
+      previewStrip.innerHTML = '';
+      selectedFiles.forEach((f, i) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'remove-thumb';
+        wrapper.style.position = 'relative';
+        wrapper.style.display = 'inline-block';
+
+        const img = document.createElement('img');
+        img.className = 'thumb';
+        if (f.type.startsWith('image/')) {
+          img.src = URL.createObjectURL(f);
+        } else {
+          img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect fill="%23222" width="80" height="80" rx="8"/><text x="40" y="45" text-anchor="middle" fill="%23888" font-size="11">HEIC</text></svg>';
+        }
+
+        const btn = document.createElement('button');
+        btn.className = 'remove-btn';
+        btn.textContent = 'x';
+        btn.onclick = () => { selectedFiles.splice(i, 1); renderPreviews(); };
+
+        wrapper.appendChild(img);
+        wrapper.appendChild(btn);
+        previewStrip.appendChild(wrapper);
+      });
+      btnUpload.disabled = selectedFiles.length === 0;
+    }
+
+    // Collapsible sections
+    function toggleSection(id) {
+      const body = document.getElementById('section-' + id);
+      const header = body.previousElementSibling;
+      body.classList.toggle('open');
+      header.classList.toggle('open');
+    }
+
+    // Simple markdown to HTML
+    function mdToHtml(md) {
+      return md
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/^\| (.+)$/gm, (match) => {
+          const cells = match.split('|').filter(c => c.trim());
+          if (cells.every(c => c.trim().match(/^[-:]+$/))) return '';
+          const tag = match.includes('---') ? 'th' : 'td';
+          return '<tr>' + cells.map(c => `<${tag}>${c.trim()}</${tag}>`).join('') + '</tr>';
+        })
+        .replace(/(<tr>.*<\/tr>\n?)+/g, '<table>$&</table>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+        .replace(/\n{2,}/g, '<br><br>')
+        .replace(/\n/g, '<br>');
+    }
+
+    // Progress management
+    function showProgress(steps) {
+      const el = document.getElementById('progress');
+      el.classList.add('active');
+      document.getElementById('results').classList.remove('active');
+      document.getElementById('error').classList.remove('active');
+
+      document.querySelectorAll('.progress-step').forEach(s => {
+        s.classList.remove('active', 'done');
+        s.querySelector('.step-icon').innerHTML = '';
+        s.style.display = 'none';
+      });
+
+      steps.forEach(id => {
+        const step = document.getElementById('step-' + id);
+        if (step) step.style.display = 'flex';
+      });
+    }
+
+    function setStepActive(id) {
+      const step = document.getElementById('step-' + id);
+      if (!step) return;
+      step.classList.add('active');
+      step.querySelector('.step-icon').innerHTML = '<div class="spinner"></div>';
+    }
+
+    function setStepDone(id) {
+      const step = document.getElementById('step-' + id);
+      if (!step) return;
+      step.classList.remove('active');
+      step.classList.add('done');
+      step.querySelector('.step-icon').innerHTML = '<span class="check">&#10003;</span>';
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      el.classList.add('active');
+      document.getElementById('progress').classList.remove('active');
+    }
+
+    function showResults(data) {
+      document.getElementById('progress').classList.remove('active');
+      const results = document.getElementById('results');
+      results.classList.add('active');
+
+      document.getElementById('recipe-output').innerHTML = mdToHtml(data.recipe || '');
+
+      if (data.extracted_info) {
+        document.getElementById('extracted-output').innerHTML = mdToHtml(data.extracted_info);
+      }
+
+      const refs = [data.scraped_recipes, data.ai_references].filter(Boolean).join('\n\n---\n\n');
+      document.getElementById('references-output').innerHTML = mdToHtml(refs);
+
+      if (data.keto_research) {
+        document.getElementById('keto-research-output').innerHTML = mdToHtml(data.keto_research);
+      }
+    }
+
+    // Image upload submit
+    btnUpload.addEventListener('click', async () => {
+      if (selectedFiles.length === 0) return;
+
+      btnUpload.disabled = true;
+      showProgress(['extract', 'scrape', 'search', 'keto', 'decompile']);
+      setStepActive('extract');
+
+      const formData = new FormData();
+      selectedFiles.forEach(f => formData.append('images', f));
+
+      try {
+        // Simulate progress steps (the API does it all in one call)
+        const progressTimer = setInterval(() => {
+          const steps = ['extract', 'scrape', 'search', 'keto', 'decompile'];
+          const activeIdx = steps.findIndex(s =>
+            document.getElementById('step-' + s).classList.contains('active')
+          );
+          if (activeIdx >= 0 && activeIdx < steps.length - 1) {
+            setStepDone(steps[activeIdx]);
+            setStepActive(steps[activeIdx + 1]);
+          }
+        }, 8000);
+
+        const resp = await fetch('/decompile', { method: 'POST', body: formData });
+        clearInterval(progressTimer);
+
+        if (!resp.ok) {
+          const err = await resp.json();
+          throw new Error(err.detail || 'Request failed');
+        }
+
+        // Mark all done
+        ['extract', 'scrape', 'search', 'keto', 'decompile'].forEach(setStepDone);
+
+        const data = await resp.json();
+        showResults(data);
+      } catch (err) {
+        showError('Error: ' + err.message);
+      } finally {
+        btnUpload.disabled = false;
+      }
+    });
+
+    // Text submit
+    document.getElementById('btn-text').addEventListener('click', async () => {
+      const ingredients = document.getElementById('ingredients').value.trim();
+      const nutrition = document.getElementById('nutrition').value.trim();
+
+      if (!ingredients || !nutrition) {
+        showError('Please fill in at least the ingredients and nutrition facts.');
+        return;
+      }
+
+      const btn = document.getElementById('btn-text');
+      btn.disabled = true;
+      showProgress(['scrape', 'search', 'keto', 'decompile']);
+      setStepActive('scrape');
+
+      const formData = new FormData();
+      formData.append('ingredients', ingredients);
+      formData.append('nutrition_facts', nutrition);
+      formData.append('product_name', document.getElementById('product-name').value);
+      formData.append('serving_size', document.getElementById('serving-size').value);
+      formData.append('servings_per_container', document.getElementById('servings-count').value);
+
+      try {
+        const progressTimer = setInterval(() => {
+          const steps = ['scrape', 'search', 'keto', 'decompile'];
+          const activeIdx = steps.findIndex(s =>
+            document.getElementById('step-' + s).classList.contains('active')
+          );
+          if (activeIdx >= 0 && activeIdx < steps.length - 1) {
+            setStepDone(steps[activeIdx]);
+            setStepActive(steps[activeIdx + 1]);
+          }
+        }, 8000);
+
+        const resp = await fetch('/decompile/text', { method: 'POST', body: formData });
+        clearInterval(progressTimer);
+
+        if (!resp.ok) {
+          const err = await resp.json();
+          throw new Error(err.detail || 'Request failed');
+        }
+
+        ['scrape', 'search', 'keto', 'decompile'].forEach(setStepDone);
+
+        const data = await resp.json();
+        showResults(data);
+      } catch (err) {
+        showError('Error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
